@@ -1,0 +1,149 @@
+---
+title: "Practical machine Learning Project on Coursera"
+author: "Charles"
+date: "July 1, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+- The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+- The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Getting the Data
+
+```{r, echo=TRUE}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+destfile2 <- "destfile.csv"
+destfile3 <- "destfile.csv"
+if(!file.exists(destfile2))
+  {
+  download.file(trainUrl, 
+                destfile = destfile2, 
+                method = "curl")
+}
+if(!file.exists(destfile3))
+{
+  download.file(testUrl1, 
+                destfile = destfile3, 
+                method = "curl")
+}
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+```
+
+```{r, echo= TRUE}
+library(corrplot)
+```
+
+## Loading Required packages
+
+```{r, echo=TRUE }
+library(caret)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(e1071)
+```
+
+partitioning of data into training of 60% and test of 40%
+
+```{r, echo=TRUE}
+Train60 <- createDataPartition(y=training$classe, p=0.6, list=FALSE)
+Training <- training[Train60, ]
+Testing <- training[-Train60, ]
+```
+
+```{r, echo=TRUE}
+dim(Training)
+dim(Testing)
+```
+
+*Removing Nas*
+```{r, echo=TRUE}
+AllNA    <- sapply(Training, function(x) mean(is.na(x))) > 0.95
+Training <- Training[, AllNA==FALSE]
+Testing  <- Testing[, AllNA==FALSE]
+dim(Training)
+```
+*Removing data that are near Zero*
+```{r, echo=TRUE}
+NZV <- nearZeroVar(Training)
+traindata <- Training[, -NZV]
+testdata  <- Testing[, -NZV]
+dim(traindata)
+dim(testdata)
+```
+## Model Building
+- We will use three model and select the best with higher accuracy on the test data. the model to use are:
+    1. Random Forests
+    2. Decision trees
+    3. Generalized Boosted Model
+
+## 1. Random Forest
+```{r, echo=TRUE}
+set.seed(1200)
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modRF1 <- train(classe ~ ., data=traindata, method="rf", trControl=controlRF)
+modRF1$finalModel
+```
+```{r, echo=TRUE}
+predictRandForest <- predict(modRF1, newdata=testdata)
+confMatRandForest <- confusionMatrix(predictRandForest, testdata$classe)
+confMatRandForest
+```
+## 2. Decision Tree
+
+```{r, echo=TRUE}
+set.seed(1200)
+modFitDecTree <- rpart(classe ~ ., data=traindata, method="class")
+fancyRpartPlot(modFitDecTree)
+```
+
+```{r, echo=TRUE}
+predictDecTree <- predict(modFitDecTree, newdata=testdata, type="class")
+confMatDecTree <- confusionMatrix(predictDecTree, testdata$classe)
+confMatDecTree
+```
+
+## 3. Generalized Boosted Model
+```{r, echo=TRUE}
+set.seed(1200)
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modFitGBM  <- train(classe ~ ., data=traindata, method = "gbm",
+                    trControl = controlGBM, verbose = FALSE)
+modFitGBM$finalModel
+```
+
+```{r, echo=TRUE}
+predictGBM <- predict(modFitGBM, newdata=testdata)
+confMatGBM <- confusionMatrix(predictGBM, testdata$classe)
+confMatGBM
+```
+FRom the analysis the accuracy of the Random Forest yeild best result with 100% accuracy while Decision Tree follows with 0.9998 and GMB is 0.9997
+
+## Applying Best Model to Validate test Data
+
+```{r, echo=TRUE}
+ValResult <- predict(modRF1, newdata=testing)
+ValResult
+```
+
